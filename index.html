@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bid List - Car Auction</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .card-img-top {
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .card {
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .fallback-image {
+            background-color: #ddd;
+            color: #555;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            border: none;
+        }
+
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+
+        .timer {
+            font-size: 1.2rem;
+            color: #ff5722;
+            font-weight: bold;
+        }
+
+        .feedback {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .feedback.success {
+            color: green;
+        }
+
+        .feedback.error {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Car Auction</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link  " href="add-cars.html">Add Cars</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="index.html">Auction List</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="login.html">Login</a>
+                    </li>
+                    
+                    <li class="nav-item">
+                        <a class="nav-link  " href="ended-auctions.html">Ended Auctions</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <header class="bg-dark text-white py-3">
+        <div class="container">
+            <h1 class="text-center">Bid List of Cars</h1>
+        </div>
+    </header>
+
+    <main class="container my-5">
+        <div class="row g-4" id="bidListContainer">
+            <!-- Dynamic content will be inserted here -->
+        </div>
+    </main>
+
+    <footer class="bg-dark text-white text-center py-3">
+        <p class="mb-0">&copy; 2024 Car Auction. All Rights Reserved.</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let ws;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchBids();
+            initializeWebSocket();
+        });
+        async function fetchBids() {
+            try {
+                const response = await fetch('http://localhost:3000/bids');
+                if (!response.ok) throw new Error('Failed to fetch bids');
+                const bids = await response.json();
+                // Group bids by auction_id
+                const groupedBids = bids.reduce((acc, bid) => {
+                    if (!acc[bid.auction_id]) {
+                        acc[bid.auction_id] = {
+                            auction_id: bid.auction_id,
+                            car_name: bid.car_name,
+                            car_image: bid.car_image,
+                            starting_bid: bid.starting_bid,
+                            auction_end: bid.auction_end,
+                            bid_list: []
+                        };
+                    }
+                    acc[bid.auction_id].bid_list.push({
+                        bidder: bid.bidder,
+                        amount: bid.bid_amount
+                    });
+                    return acc;
+                }, {});
+
+                const bidListContainer = document.getElementById('bidListContainer');
+                bidListContainer.innerHTML = '';
+
+                // Render each auction with its bid list
+                Object.values(groupedBids).forEach(auction => {
+                    bidListContainer.insertAdjacentHTML('beforeend', generateAuctionCard(auction));
+                });
+            } catch (err) {
+                console.error('Error loading bids:', err);
+            }
+        }
+
+
+
+
+        function generateAuctionCard(auction) {
+            const timeRemaining = getTimeRemaining(auction.auction_end);
+            const isAuctionEnded = timeRemaining.total <= 0;
+
+            // Utility function to handle defaults
+            const defaultValue = (value, type = 'number', fallback = 0) => {
+                if (type === 'number') return value != null ? value : fallback;
+                if (type === 'string') return value ? value : fallback;
+            };
+
+            const lastBid = defaultValue(auction.bid_amount, 'number', 0).toLocaleString();
+            const startingBid = defaultValue(auction.starting_bid, 'number', 0).toLocaleString();
+            const carName = defaultValue(auction.car_name, 'string', 'Auction');
+            const bidListHTML = auction.bid_list
+                .map((bid) => `
+            <li>
+                <strong>${defaultValue(bid.bidder, 'string', 'Anonymous')}:</strong> 
+                $${defaultValue(bid.amount, 'number', 0).toLocaleString()}
+            </li>`)
+                .join('');
+
+            let auctionCardHTML = `
+    <div class="col-md-3">
+        <div class="card shadow" id="auction-${defaultValue(auction.auction_id, 'number', 0)}">
+            ${generateImage(auction.car_image, carName)}
+            <div class="card-body">
+                <h5 class="card-title">${carName}</h5>
+                <p class="card-text">
+                    <strong>Last Bid:</strong> $${lastBid} <br>
+                    <strong>Starting Bid:</strong> $${startingBid} <br>
+                    <strong>Time Left:</strong> <span class="timer" id="timer-${defaultValue(auction.auction_id, 'number', 0)}">${timeRemaining.display}</span>
+                </p>
+                <ul>${bidListHTML}</ul>
+                ${!isAuctionEnded
+                    ? `<button class="btn btn-info w-100 mb-2" onclick="joinAuction(${defaultValue(auction.auction_id, 'number', 0)})">Join Bid</button>`
+                    : ''
+                }
+                ${isAuctionEnded
+                    ? `<button class="btn btn-secondary w-100" disabled>Auction Ended</button>`
+                    : `
+                        <div id="bidSection-${defaultValue(auction.auction_id, 'number', 0)}">
+                            <input type="number" id="bidAmount-${defaultValue(auction.auction_id, 'number', 0)}" class="form-control mb-2" placeholder="Enter your bid">
+                            <button class="btn btn-primary w-100" onclick="placeBid(${defaultValue(auction.auction_id, 'number', 0)}, ${defaultValue(auction.bid_amount, 'number', 0)})">Place Bid</button>
+                            <p class="feedback" id="feedback-${defaultValue(auction.auction_id, 'number', 0)}"></p>
+                        </div>
+                    `
+                }
+            </div>
+        </div>
+    </div>
+`;
+
+            console.log("isAuctionEnded " + isAuctionEnded);
+            if (isAuctionEnded) auctionCardHTML = ``;
+            return auctionCardHTML;
+        }
+
+
+
+
+        function initializeWebSocket() {
+            ws = new WebSocket('ws://localhost:8080');
+
+            ws.onopen = () => console.log('WebSocket connected');
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.message && data.message.startsWith('New bid:')) {
+                    console.log('Received bid update:', data);
+                    updateBidList(data);
+                }
+            };
+
+            ws.onerror = (error) => console.error('WebSocket error:', error);
+
+            ws.onclose = () => {
+                console.log('WebSocket closed. Reconnecting...');
+                setTimeout(initializeWebSocket, 3000);
+            };
+        }
+
+        function updateBidList(data) {
+            const feedback = document.getElementById(`feedback-${data.auctionId}`);
+            const bidAmountElement = document.getElementById(`bidAmount-${data.auctionId}`);
+            const timerElement = document.getElementById(`timer-${data.auctionId}`);
+
+            if (feedback && bidAmountElement && timerElement) {
+                feedback.className = "feedback success";
+                feedback.textContent = `New bid placed successfully!`;
+                feedback.style.display = "block";
+            }
+        }
+        function joinAuction(auctionId) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(
+                    JSON.stringify({
+                        action: 'joinAuction',
+                        payload: { auctionId },
+                    })
+                );
+                console.log(`Joined auction with ID: ${auctionId}`);
+                alert(`You have successfully joined the auction #${auctionId}.`);
+            } else {
+                console.error('WebSocket is not connected.');
+                alert('Unable to join the auction. Please try again later.');
+            }
+        }
+
+        function generateBidCard(bid) {
+            const timeRemaining = getTimeRemaining(bid.auction_end);
+            const isAuctionEnded = timeRemaining.total <= 0;
+
+            return `
+        <div class="col-md-4">
+            <div class="card shadow">
+                ${generateImage(bid.car_image, bid.car_name)}
+                <div class="card-body">
+                    <h5 class="card-title">${bid.car_name}</h5>
+                    <p class="card-text">
+                        <strong>Last Bid:</strong> $${bid.bid_amount.toLocaleString()} <br>
+                        <strong>Starting Bid:</strong> $${bid.starting_bid.toLocaleString()} <br>
+                        <strong>Time Left:</strong> <span class="timer" id="timer-${bid.auction_id}">${timeRemaining.display}</span>
+                    </p>
+                    <button class="btn btn-info w-100 mb-2" onclick="joinAuction(${bid.auction_id})">Join Bid</button>
+                    ${isAuctionEnded
+                    ? `<button class="btn btn-secondary w-100" disabled>Auction Ended</button>`
+                    : `
+                        <div id="bidSection-${bid.auction_id}">
+                            <input type="number" id="bidAmount-${bid.auction_id}" class="form-control mb-2" placeholder="Enter your bid">
+                            <button class="btn btn-primary w-100" onclick="placeBid(${bid.auction_id}, ${bid.bid_amount})">Place Bid</button>
+                            <p class="feedback" id="feedback-${bid.auction_id}"></p>
+                        </div>
+                        `
+                }
+                </div>
+            </div>
+        </div>
+    `;
+        }
+
+        function generateImage(imageUrl, carName) {
+            const placeholder = 'https://via.placeholder.com/350x200?text=No+Image+Available';
+            return imageUrl
+                ? `<img src="${imageUrl}" class="card-img-top" alt="Car Image" onerror="this.src='${placeholder}';">`
+                : `<div class="fallback-image">${carName}</div>`;
+        }
+
+        function getTimeRemaining(endTime) {
+            const total = Date.parse(endTime) - Date.now();
+            if (total <= 0) return { total: 0, display: "Auction Ended" };
+
+            const seconds = Math.floor((total / 1000) % 60);
+            const minutes = Math.floor((total / 1000 / 60) % 60);
+            const hours = Math.floor((total / 1000 / 60 / 60) % 24);
+            const days = Math.floor(total / (1000 * 60 * 60 * 24));
+
+            return {
+                total,
+                display: `${days}d ${hours}h ${minutes}m ${seconds}s`
+            };
+        }
+        function placeBid(auctionId, lastBid) {
+            const bidInput = document.getElementById(`bidAmount-${auctionId}`);
+            const feedback = document.getElementById(`feedback-${auctionId}`);
+            const bidAmountElement = document.getElementById(`bidAmount-${auctionId}`);
+            const bidAmount = parseFloat(bidInput.value);
+
+            if (isNaN(bidAmount) || bidAmount <= lastBid) {
+                feedback.textContent = `Your bid must be higher than $${lastBid.toLocaleString()}`;
+                feedback.className = "feedback error";
+                feedback.style.display = "block";
+                return;
+            }
+
+            if (ws.readyState === WebSocket.OPEN) {
+                // Send the bid to the server
+                ws.send(
+                    JSON.stringify({
+                        action: 'placeBid',
+                        payload: { auctionId, bidAmount },
+                    })
+                );
+
+                // Update the UI with the new bid amount
+                feedback.textContent = `Bid of $${bidAmount.toLocaleString()} placed successfully!`;
+                feedback.className = "feedback success";
+                feedback.style.display = "block";
+
+                // Update the last bid amount in the card
+                bidAmountElement.value = bidAmount; // Update the input field
+
+                // Log the auction card to confirm its presence
+                const auctionCard = document.getElementById(`auction-${auctionId}`);
+
+                if (auctionCard) {
+                    const bidText = auctionCard.querySelector('.card-text strong');
+                    if (bidText) {
+                        bidText.innerHTML = `Last Bid: $${bidAmount.toLocaleString()}`;
+                    } else {
+                        console.error('Bid text element not found inside .card-text');
+                    }
+                } else {
+                    console.error('Auction card with ID auction-' + auctionId + ' not found.');
+                }
+            } else {
+                feedback.textContent = "WebSocket is not connected.";
+                feedback.className = "feedback error";
+                feedback.style.display = "block";
+            }
+        }
+    </script>
+</body>
+
+</html>

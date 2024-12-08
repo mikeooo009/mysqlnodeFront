@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Auction</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Auction System</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="add-cars.html">Add Auction</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">Auction List</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="login.html">Login</a>
+                    </li>
+                    
+                    <li class="nav-item">
+                        <a class="nav-link  " href="ended-auctions.html">Ended Auctions</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2 class="text-center mb-4">Add a New Auction</h2>
+
+        <div class="mb-3">
+            <label for="auctionName" class="form-label">Auction Name</label>
+            <input type="text" class="form-control" id="auctionName" placeholder="Enter auction name">
+        </div>
+        <div class="mb-3">
+            <label for="carId" class="form-label">Car ID</label>
+            <input type="number" class="form-control" id="carId" placeholder="Enter car ID">
+        </div>
+        <div class="mb-3">
+            <label for="startTime" class="form-label">Auction Start Time</label>
+            <input type="datetime-local" class="form-control" id="startTime">
+        </div>
+        <div class="mb-3">
+            <label for="endTime" class="form-label">Auction End Time</label>
+            <input type="datetime-local" class="form-control" id="endTime">
+        </div>
+        <button id="addAuctionButton" class="btn btn-primary w-100">Add Auction</button>
+    </div>
+
+    <!-- Success/Failure Modal -->
+    <div class="modal fade" id="resultModal" tabindex="-1" aria-labelledby="resultModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="resultModalLabel">Result</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="resultMessage"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Attach the event listener to the button
+        document.getElementById('addAuctionButton').addEventListener('click', addAuctionForm);
+
+        function addAuctionForm(event) {
+            event.preventDefault();  // Prevent form submission
+
+            const auctionName = document.getElementById('auctionName').value.trim();
+            const carId = document.getElementById('carId').value.trim();
+            const startTime = document.getElementById('startTime').value.trim();
+            const endTime = document.getElementById('endTime').value.trim();
+
+            // Check if all required fields are filled out
+            if (!auctionName || !carId || !startTime || !endTime) {
+                showModal('Error', 'All fields are required.');
+                return;
+            }
+
+            // Prepare data to send to backend
+            const auctionData = {
+                name: auctionName,
+                start_time: startTime,
+                end_time: endTime,
+                car_id: carId
+            };
+
+            // Log data to confirm it's being sent correctly
+            console.log('Sending data:', auctionData);
+
+            // Send AJAX request
+            $.ajax({
+                url: 'http://localhost:3000/addAuction',
+                type: 'POST',
+                data: JSON.stringify(auctionData),
+                contentType: 'application/json',
+                success: function (data) {
+                    if (data.message) {
+                        $('#auctionName').val('');
+                        $('#carId').val('');
+                        $('#startTime').val('');
+                        $('#endTime').val('');
+                        showModal('Success', data.message);
+                    } else {
+                        showModal('Error', data.error || 'Failed to add auction.');
+                    }
+                },
+                error: function (xhr, status, error) {
+                    console.error('Error:', error);
+                    showModal('Error', 'An unexpected error occurred.');
+                }
+            });
+        }
+
+        function showModal(title, message) {
+            document.getElementById('resultModalLabel').textContent = title;
+            document.getElementById('resultMessage').textContent = message;
+            const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
+            resultModal.show();
+        }
+    </script>
+</body>
+
+</html>
